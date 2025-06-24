@@ -1,5 +1,5 @@
 import hashlib
-import AES_Key_Expansion as key_expansion
+import AES_Key_Expansion as aesk
 
 SBOX = [
     0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
@@ -85,7 +85,7 @@ def aes_encrypt_block(plaintext, key):
     state = [[plaintext[row + 4*col] for col in range(4)] for row in range(4)]
 
     # Expand the key
-    round_keys = key_expansion(key)  # Returns 44 words of 4 bytes each
+    round_keys = aesk.key_expansion(key, SBOX)  # Returns 44 words of 4 bytes each
 
     # Convert round keys to 4x4 matrices for each round
     round_key_matrices = []

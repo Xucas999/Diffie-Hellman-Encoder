@@ -1,9 +1,4 @@
-import cryptography
 import math
-
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 def get_prime(generator_number):
     print("Finding Prime Numbers...")
@@ -21,6 +16,7 @@ def get_prime(generator_number):
         b = math.sqrt(bb)
         if b.is_integer():
             break
+        print(a, b)
         a += 1
     return int(a + b)
 
