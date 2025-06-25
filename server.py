@@ -1,4 +1,3 @@
-import socket
 import random
 import DH_encoder as enc
 
