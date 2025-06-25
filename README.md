@@ -6,9 +6,9 @@
 # Completed Work:
 #   DH_encoder.py provides algorithms to calulate shared secrets
 #   client.py and server.py allows two terminals to share a secret
+#   Enable terminals to send encrypted messages
 
 # Future Work
-#   Enable terminals to send encrypted messages
 #   Allow two local machines to send encrypted messages
 #   Allow any two machines to send encrypted messages
 #   Create a GUI
