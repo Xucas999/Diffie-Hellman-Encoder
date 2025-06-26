@@ -32,6 +32,7 @@ class ChatApp:
         self.port_entry.pack(pady=5)
 
         tk.Button(self.root, text="Start Hosting", command=self.start_hosting).pack(pady=10)
+        tk.Button(self.root, text="Back", command=self.init_welcome_page).pack(pady=5)
 
     def start_hosting(self):
         port_str = self.port_entry.get().strip()
@@ -46,11 +47,13 @@ class ChatApp:
         tk.Label(self.root, text="Waiting for client to connect...", font=("Arial", 14)).pack(pady=10)
         tk.Label(self.root, text=f"Your IP: {ip}\nPort: {self.port}", font=("Arial", 12)).pack(pady=5)
 
+        tk.Button(self.root, text="Back", command=self.init_welcome_page).pack(pady=10)
+
         threading.Thread(target=self.wait_for_client, daemon=True).start()
 
     def wait_for_client(self):
         try:
-            self.sock, self.chat_key = chat.start_peer_gui(is_server=True, port=self.port)
+            self.sock, self.chat_key, self.secret, self.shared_secret = chat.start_peer_gui(is_server=True, port=self.port)
             self.root.after(0, self.init_chat_page)
         except Exception as e:
             self.root.after(0, lambda: messagebox.showerror("Hosting Error", str(e)))
@@ -78,12 +81,13 @@ class ChatApp:
 
         port = int(port_str)
         try:
-            self.sock, self.chat_key = chat.start_peer_gui(is_server=False, ip=ip, port=port)
+            self.sock, self.chat_key, self.secret, self.shared_secret = chat.start_peer_gui(is_server=False, ip=ip, port=port)
             self.init_chat_page()
         except Exception as e:
             messagebox.showerror("Connection Failed", str(e))
 
     def init_chat_page(self):
+        self.encrypted_log = []
         self.clear_window()
         self.root.rowconfigure(0, weight=1)
         self.root.columnconfigure(0, weight=1)
@@ -106,7 +110,29 @@ class ChatApp:
         exit_btn = tk.Button(frame, text="Exit", command=self.exit_chat)
         exit_btn.grid(row=1, column=2, sticky="ew", padx=(5, 10), pady=10)
 
+        toggle_btn = tk.Button(frame, text="Show Encryption Info", command=self.toggle_encryption_view)
+        toggle_btn.grid(row=2, column=0, columnspan=3, sticky="ew", padx=10, pady=5)
+        self.is_encryption_view = False
+
         threading.Thread(target=self.receive_messages, daemon=True).start()
+
+    def toggle_encryption_view(self):
+        self.is_encryption_view = not self.is_encryption_view
+        self.text_area.config(state='normal')
+        self.text_area.delete("1.0", tk.END)
+
+        if self.is_encryption_view:
+            self.text_area.insert(tk.END, f"Your Secret Number: {self.secret}\n")
+            self.text_area.insert(tk.END, f"Shared Secret: {self.shared_secret}\n\n")
+            self.text_area.insert(tk.END, "Encrypted Messages:\n")
+            for entry in self.encrypted_log:
+                self.text_area.insert(tk.END, f"{entry}\n")
+        else:
+            # Restore plaintext messages is optional – you can just clear the screen
+            self.text_area.insert(tk.END, "Switched back to chat view.\n")
+
+        self.text_area.config(state='disabled')
+        self.text_area.yview(tk.END)
 
     def exit_chat(self):
         try:
@@ -120,7 +146,8 @@ class ChatApp:
         msg = self.entry.get()
         if msg:
             try:
-                chat.send_encrypted(self.sock, msg, self.chat_key)
+                encrypted = chat.send_encrypted(self.sock, msg, self.chat_key, return_encrypted=True)
+                self.encrypted_log.append(f"You → {encrypted.hex()}")
                 self.display_message("You", msg)
                 self.entry.delete(0, tk.END)
             except Exception as e:
@@ -129,9 +156,10 @@ class ChatApp:
     def receive_messages(self):
         while True:
             try:
-                msg = chat.receive_encrypted(self.sock, self.chat_key)
-                if msg:
-                    self.display_message("Peer", msg)
+                encrypted, decrypted = chat.receive_encrypted(self.sock, self.chat_key, return_encrypted=True)
+                self.encrypted_log.append(f"Peer → {encrypted.hex()}")
+                if decrypted:
+                    self.display_message("Peer", decrypted)
             except Exception:
                 break
 

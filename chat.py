@@ -10,25 +10,27 @@ def start_peer_gui(is_server, ip='localhost', port=9999):
         s.bind(('', port))
         s.listen(1)
         conn, _ = s.accept()
-        key = server.start_server(conn)
+        secret, shared_secret = server.start_server(conn)
     else:
         s.connect((ip, port))
         conn = s
-        key = client.start_client(conn)
+        secret, shared_secret = client.start_client(conn)
 
-    key = AES_encoder.derive_key(key)
+    key = AES_encoder.derive_key(shared_secret)
     AES_encoder.save_key(key)
-    return conn, key
+    return conn, key, secret, shared_secret
 
-def send_encrypted(sock, msg, key):
-    padded = msg.encode().ljust(16, b'\x00')[:16]
+def send_encrypted(conn, message, key, return_encrypted=False):
+    padded = message.encode().ljust(16, b'\x00')[:16]
     encrypted = AES_encoder.aes_encrypt_block(padded, key)
-    sock.sendall(encrypted)
+    conn.sendall(encrypted)
+    if return_encrypted:
+        return encrypted
 
-def receive_encrypted(sock, key):
-    data = sock.recv(16)
-    if not data:
-        return None
-    decrypted = AES_decoder.aes_decrypt_block(data, key)
-    return decrypted.rstrip(b'\x00').decode(errors='ignore')
+def receive_encrypted(conn, key, return_encrypted=False):
+    encrypted = conn.recv(16)
+    decrypted = AES_decoder.aes_decrypt_block(encrypted, key).rstrip(b'\x00').decode(errors='ignore')
+    if return_encrypted:
+        return encrypted, decrypted
+    return decrypted
 

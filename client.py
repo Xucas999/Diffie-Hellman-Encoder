@@ -17,5 +17,5 @@ def start_client(client):
     # Step 3: Compute shared secret
     shared_secret = enc.calculate_shared_secret(server_public_key, secret_value, p)
     print(f"Shared Secret: {shared_secret}")
-    return shared_secret
+    return secret_value, shared_secret
     

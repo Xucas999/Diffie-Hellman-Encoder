@@ -3,8 +3,8 @@ import DH_encoder as enc
 
 def start_server(conn):
     # Diffie-Hellman Parameters
-    p = enc.get_prime(random.randint(23,100)) # Shared Big Prime
-    g = enc.get_prime(random.randint(2,19)) # Shared Base Prime
+    p = enc.get_prime(23,100) # Shared Big Prime
+    g = enc.get_prime(2,19) # Shared Base Prime
     secret_value = random.randint(5,20)
     server_public_key = enc.calculate_public_shared_values(secret_value, g, p)
 
@@ -19,4 +19,4 @@ def start_server(conn):
     shared_secret = enc.calculate_shared_secret(client_public_key, secret_value, p)
     print(f"Server's Shared Secret: {shared_secret}")
 
-    return shared_secret
+    return secret_value, shared_secret
