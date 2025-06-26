@@ -1,135 +1,123 @@
 import tkinter as tk
-from tkinter import messagebox
-import threading
+from tkinter import messagebox, scrolledtext
 import socket
+import threading
 import chat
-import base64
 
-class ChatGUI(tk.Tk):
-    def __init__(self):
-        super().__init__()
-        self.title("Chat App")
-        self.geometry("400x500")
-        
-        self.sock = None
-        self.conn = None
-        self.key = None
+class ChatApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Secure Chat")
+        self.root.geometry("600x500")  # Starting size
+        self.root.minsize(400, 400)    # Minimum window size
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
 
-        self.create_welcome_page()
+        self.init_welcome_page()
 
-    def create_welcome_page(self):
-        for widget in self.winfo_children():
-            widget.destroy()
+    def init_welcome_page(self):
+        self.clear_window()
+        tk.Label(self.root, text="Welcome to Secure Chat", font=("Arial", 16)).pack(pady=10)
 
-        welcome_label = tk.Label(self, text="Welcome to Chat", font=("Arial", 16))
-        welcome_label.pack(pady=20)
-
-        host_button = tk.Button(self, text="Host Room", command=self.host_room)
-        host_button.pack(pady=10)
-
-        join_button = tk.Button(self, text="Join Room", command=self.join_room)
-        join_button.pack(pady=10)
+        tk.Button(self.root, text="Host Room", command=self.host_room).pack(pady=5)
+        tk.Button(self.root, text="Join Room", command=self.join_room).pack(pady=5)
 
     def host_room(self):
-        threading.Thread(target=self.start_server, daemon=True).start()
+        self.clear_window()
+        self.status_label = tk.Label(self.root, text="Waiting for client to connect...")
+        self.status_label.pack(pady=10)
+
+        ip = socket.gethostbyname(socket.gethostname())
+        tk.Label(self.root, text=f"Your IP: {ip}", font=("Arial", 12)).pack(pady=5)
+
+        threading.Thread(target=self.wait_for_client, daemon=True).start()
+
+    def wait_for_client(self):
+        self.sock, self.chat_key = chat.start_peer_gui(is_server=True)
+        self.root.after(0, self.init_chat_page)
 
     def join_room(self):
-        threading.Thread(target=self.start_client, daemon=True).start()
+        self.clear_window()
+        tk.Label(self.root, text="Enter Server IP:").pack()
+        self.ip_entry = tk.Entry(self.root)
+        self.ip_entry.pack(pady=5)
+        tk.Button(self.root, text="Connect", command=self.connect_to_server).pack(pady=5)
 
-    def start_server(self):
+    def connect_to_server(self):
+        ip = self.ip_entry.get().strip()
+        if not ip:
+            messagebox.showerror("Error", "Please enter a valid IP address")
+            return
         try:
-            self.sock = socket.socket()
-            self.sock.bind(('localhost', 9999))
-            self.sock.listen(1)
-            print("Waiting for connection...")
-            self.conn, addr = self.sock.accept()
-            print(f"Connected to {addr}")
-            
-            self.key = chat.server.start_server(self.conn)
-            self.key = chat.AES_encoder.derive_key(self.key)
-            chat.AES_encoder.save_key(self.key)
-            
-            self.setup_chat_page()
-            
-            threading.Thread(target=self.receive_loop, daemon=True).start()
-            
+            self.sock, self.chat_key = chat.start_peer_gui(is_server=False, ip=ip)
+            self.init_chat_page()
         except Exception as e:
-            messagebox.showerror("Connection Error", str(e))
+            messagebox.showerror("Connection Failed", str(e))
 
-    def start_client(self):
+    def init_chat_page(self):
+        self.clear_window()
+        self.root.rowconfigure(0, weight=1)
+        self.root.columnconfigure(0, weight=1)
+
+        frame = tk.Frame(self.root)
+        frame.grid(row=0, column=0, sticky="nsew")
+        frame.rowconfigure(0, weight=1)
+        frame.columnconfigure(0, weight=1)
+
+        self.text_area = scrolledtext.ScrolledText(frame, state='disabled', wrap='word')
+        self.text_area.grid(row=0, column=0, columnspan=3, sticky="nsew", padx=10, pady=10)
+
+        self.entry = tk.Entry(frame)
+        self.entry.grid(row=1, column=0, sticky="ew", padx=(10, 5), pady=10)
+        frame.columnconfigure(0, weight=1)
+
+        send_btn = tk.Button(frame, text="Send", command=self.send_message)
+        send_btn.grid(row=1, column=1, sticky="ew", padx=(5, 5), pady=10)
+
+        exit_btn = tk.Button(frame, text="Exit", command=self.exit_chat)
+        exit_btn.grid(row=1, column=2, sticky="ew", padx=(5, 10), pady=10)
+
+        threading.Thread(target=self.receive_messages, daemon=True).start()
+
+    def exit_chat(self):
         try:
-            self.conn = socket.socket()
-            self.conn.connect(('localhost', 9999))
-            print("Connected to server")
-
-            self.key = chat.client.start_client(self.conn)
-            self.key = chat.AES_encoder.derive_key(self.key)
-            chat.AES_encoder.save_key(self.key)
-
-            self.setup_chat_page()
-            
-            threading.Thread(target=self.receive_loop, daemon=True).start()
+            if self.sock:
+                self.sock.close()
         except Exception as e:
-            messagebox.showerror("Connection Error", str(e))
-
-    def setup_chat_page(self):
-        for widget in self.winfo_children():
-            widget.destroy()
-
-        self.text_area = tk.Text(self, state='disabled')
-        self.text_area.pack(expand=True, fill='both', padx=10, pady=10)
-
-        self.entry = tk.Entry(self)
-        self.entry.pack(fill='x', padx=10, pady=10)
-        self.entry.bind("<Return>", lambda event: self.send_message())
-
-        self.send_button = tk.Button(self, text="Send", command=self.send_message)
-        self.send_button.pack(pady=5)
-
-    def receive_loop(self):
-        while True:
-            try:
-                data = self.conn.recv(16)
-                if not data:
-                    break
-                decrypted = chat.AES_decoder.aes_decrypt_block(data, self.key)
-                message = decrypted.rstrip(b'\x00').decode(errors='ignore')
-                self.display_message("Peer", message)
-            except Exception as e:
-                self.display_message("System", f"Connection error: {e}")
-                break
+            print(f"Error closing socket: {e}")
+        self.root.destroy()
 
     def send_message(self):
-        if not self.conn:
-            messagebox.showwarning("Warning", "Not connected to a peer.")
-            return
+        msg = self.entry.get()
+        if msg:
+            try:
+                chat.send_encrypted(self.sock, msg, self.chat_key)
+                self.display_message("You", msg)
+                self.entry.delete(0, tk.END)
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to send: {e}")
 
-        message = self.entry.get()
-        if not message.strip():
-            return
+    def receive_messages(self):
+        while True:
+            try:
+                msg = chat.receive_encrypted(self.sock, self.chat_key)
+                if msg:
+                    self.display_message("Peer", msg)
+            except Exception:
+                break
 
-        try:
-            msg_bytes = message.encode('utf-8').ljust(16, b'\x00')[:16]
-            encrypted = chat.AES_encoder.aes_encrypt_block(msg_bytes, self.key)
-            
-            print(f"Sending message (plaintext): {message}")
-            print(f"Sending message (encrypted bytes): {encrypted}")
-            print(f"Encrypted (hex): {encrypted.hex()}")
-            print(f"Sending message (encrypted base64): {base64.b64encode(encrypted).decode()}")
-
-
-            self.conn.sendall(encrypted)
-            self.display_message("You", message)
-            self.entry.delete(0, tk.END)
-        except Exception as e:
-            messagebox.showerror("Send Error", str(e))
-
-    def display_message(self, sender, message):
+    def display_message(self, sender, msg):
         self.text_area.config(state='normal')
-        self.text_area.insert(tk.END, f"{sender}: {message}\n")
+        self.text_area.insert(tk.END, f"{sender}: {msg}\n")
         self.text_area.config(state='disabled')
-        self.text_area.see(tk.END)
+        self.text_area.yview(tk.END)
+
+    def clear_window(self):
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
 
 if __name__ == "__main__":
-    app = ChatGUI()
-    app.mainloop()
+    root = tk.Tk()
+    app = ChatApp(root)
+    root.mainloop()

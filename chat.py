@@ -1,28 +1,34 @@
 import socket
-import threading
-import AES_decoder
 import AES_encoder
-import DH_encoder as enc
+import AES_decoder
 import server
 import client
 
-def start_peer(is_server):
+def start_peer_gui(is_server, ip='localhost'):
     s = socket.socket()
     if is_server:
-        s.bind(('localhost', 9999))
+        s.bind(('', 9999))
         s.listen(1)
-        print("Waiting for connection...")
-        conn, addr = s.accept()
-        print(f"Connected to {addr}")
+        conn, _ = s.accept()
         key = server.start_server(conn)
-        key = AES_encoder.derive_key(key)
-        AES_encoder.save_key(key)
     else:
-        s.connect(('localhost', 9999))
+        s.connect((ip, 9999))
         conn = s
         key = client.start_client(conn)
-        key = AES_encoder.derive_key(key)
-        AES_encoder.save_key(key)
 
+    key = AES_encoder.derive_key(key)
+    AES_encoder.save_key(key)
     return conn, key
+
+def send_encrypted(sock, msg, key):
+    padded = msg.encode().ljust(16, b'\x00')[:16]
+    encrypted = AES_encoder.aes_encrypt_block(padded, key)
+    sock.sendall(encrypted)
+
+def receive_encrypted(sock, key):
+    data = sock.recv(16)
+    if not data:
+        return None
+    decrypted = AES_decoder.aes_decrypt_block(data, key)
+    return decrypted.rstrip(b'\x00').decode(errors='ignore')
 
