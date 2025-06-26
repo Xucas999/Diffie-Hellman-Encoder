@@ -24,10 +24,20 @@ class ChatApp:
         self.clear_window()
         tk.Label(self.root, text="Welcome to Secure Chat", font=("Arial", 16)).pack(pady=10)
 
+        tk.Label(self.root, text="Enter your name:").pack()
+        self.name_entry = tk.Entry(self.root)
+        self.name_entry.pack(pady=5)
+
+
         tk.Button(self.root, text="Host Room", command=self.host_room).pack(pady=5)
         tk.Button(self.root, text="Join Room", command=self.join_room).pack(pady=5)
 
     def host_room(self):
+        name = self.name_entry.get().strip()
+        if not name:
+            messagebox.showerror("Missing Name", "Please enter your name.")
+            return
+        self.username = name
         self.clear_window()
         tk.Label(self.root, text="Host a Room", font=("Arial", 14)).pack(pady=10)
 
@@ -58,12 +68,17 @@ class ChatApp:
 
     def wait_for_client(self):
         try:
-            self.sock, self.chat_key, self.secret, self.shared_secret = chat.start_peer_gui(is_server=True, port=self.port)
+            self.sock, self.chat_key, self.secret, self.shared_secret, self.peer_username = chat.start_peer_gui(is_server=True, ip="localhost", port=self.port, username=self.username)
             self.root.after(0, self.init_chat_page)
         except Exception as e:
             self.root.after(0, lambda: messagebox.showerror("Hosting Error", str(e)))
 
     def join_room(self):
+        name = self.name_entry.get().strip()
+        if not name:
+            messagebox.showerror("Missing Name", "Please enter your name.")
+            return
+        self.username = name
         self.clear_window()
         tk.Label(self.root, text="Enter Server IP:").pack()
         self.ip_entry = tk.Entry(self.root)
@@ -86,7 +101,7 @@ class ChatApp:
 
         port = int(port_str)
         try:
-            self.sock, self.chat_key, self.secret, self.shared_secret = chat.start_peer_gui(is_server=False, ip=ip, port=port)
+            self.sock, self.chat_key, self.secret, self.shared_secret, self.peer_username = chat.start_peer_gui(is_server=False, ip=ip, port=port, username=self.username)
             self.init_chat_page()
         except Exception as e:
             messagebox.showerror("Connection Failed", str(e))
@@ -101,6 +116,10 @@ class ChatApp:
         frame.grid(row=0, column=0, sticky="nsew")
         frame.rowconfigure(0, weight=1)
         frame.columnconfigure(0, weight=1)
+
+        tk.Label(frame, text=f"Connected with: {self.peer_username}", font=("Arial", 12)).grid(
+            row=0, column=0, columnspan=3, sticky="ew", padx=10
+        )
 
         # Text display area
         self.text_area = scrolledtext.ScrolledText(frame, state='disabled', wrap='word')
@@ -151,8 +170,8 @@ class ChatApp:
         if msg:
             try:
                 encrypted = chat.send_encrypted(self.sock, msg, self.chat_key, return_encrypted=True)
-                self.encrypted_log.append(f"You → {encrypted.hex()}")
-                self.display_message("You", msg)
+                self.encrypted_log.append(f"{self.username} → {encrypted.hex()}")
+                self.display_message(self.username, msg)
                 self.entry.delete(0, tk.END)
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to send: {e}")
@@ -161,9 +180,9 @@ class ChatApp:
         while True:
             try:
                 encrypted, decrypted = chat.receive_encrypted(self.sock, self.chat_key, return_encrypted=True)
-                self.encrypted_log.append(f"Peer → {encrypted.hex()}")
+                self.encrypted_log.append(f"{self.peer_username} → {encrypted.hex()}")
                 if decrypted:
-                    self.display_message("Peer", decrypted)
+                    self.display_message(self.peer_username, decrypted)
             except Exception:
                 break
 

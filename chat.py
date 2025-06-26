@@ -4,7 +4,7 @@ import AES_decoder
 import server
 import client
 
-def start_peer_gui(is_server, ip='localhost', port=9999):
+def start_peer_gui(is_server, ip='localhost', port=9999, username="User"):
     s = socket.socket()
     if is_server:
         s.bind(('', port))
@@ -18,7 +18,14 @@ def start_peer_gui(is_server, ip='localhost', port=9999):
 
     key = AES_encoder.derive_key(shared_secret)
     AES_encoder.save_key(key)
-    return conn, key, secret, shared_secret
+
+    conn.sendall(username.encode('utf-8').ljust(32, b'\x00'))
+
+    # Receive peer username
+    peer_username_raw = conn.recv(32)
+    peer_username = peer_username_raw.rstrip(b'\x00').decode('utf-8')
+
+    return conn, key, secret, shared_secret, peer_username
 
 def send_encrypted(conn, message, key, return_encrypted=False):
     padded = message.encode().ljust(16, b'\x00')[:16]
