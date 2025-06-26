@@ -8,8 +8,8 @@ class ChatApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Secure Chat")
-        self.root.geometry("600x500")  # Starting size
-        self.root.minsize(400, 400)    # Minimum window size
+        self.root.geometry("600x500")
+        self.root.minsize(400, 400)
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
 
@@ -24,32 +24,61 @@ class ChatApp:
 
     def host_room(self):
         self.clear_window()
-        self.status_label = tk.Label(self.root, text="Waiting for client to connect...")
-        self.status_label.pack(pady=10)
+        tk.Label(self.root, text="Host a Room", font=("Arial", 14)).pack(pady=10)
+
+        tk.Label(self.root, text="Enter Port to Host On:").pack()
+        self.port_entry = tk.Entry(self.root)
+        self.port_entry.insert(0, "9999")
+        self.port_entry.pack(pady=5)
+
+        tk.Button(self.root, text="Start Hosting", command=self.start_hosting).pack(pady=10)
+
+    def start_hosting(self):
+        port_str = self.port_entry.get().strip()
+        if not port_str.isdigit():
+            messagebox.showerror("Error", "Please enter a valid port number")
+            return
+
+        self.port = int(port_str)
+        self.clear_window()
 
         ip = socket.gethostbyname(socket.gethostname())
-        tk.Label(self.root, text=f"Your IP: {ip}", font=("Arial", 12)).pack(pady=5)
+        tk.Label(self.root, text="Waiting for client to connect...", font=("Arial", 14)).pack(pady=10)
+        tk.Label(self.root, text=f"Your IP: {ip}\nPort: {self.port}", font=("Arial", 12)).pack(pady=5)
 
         threading.Thread(target=self.wait_for_client, daemon=True).start()
 
     def wait_for_client(self):
-        self.sock, self.chat_key = chat.start_peer_gui(is_server=True)
-        self.root.after(0, self.init_chat_page)
+        try:
+            self.sock, self.chat_key = chat.start_peer_gui(is_server=True, port=self.port)
+            self.root.after(0, self.init_chat_page)
+        except Exception as e:
+            self.root.after(0, lambda: messagebox.showerror("Hosting Error", str(e)))
 
     def join_room(self):
         self.clear_window()
         tk.Label(self.root, text="Enter Server IP:").pack()
         self.ip_entry = tk.Entry(self.root)
         self.ip_entry.pack(pady=5)
+
+        tk.Label(self.root, text="Enter Port:").pack()
+        self.join_port_entry = tk.Entry(self.root)
+        self.join_port_entry.insert(0, "9999")
+        self.join_port_entry.pack(pady=5)
+
         tk.Button(self.root, text="Connect", command=self.connect_to_server).pack(pady=5)
 
     def connect_to_server(self):
         ip = self.ip_entry.get().strip()
-        if not ip:
-            messagebox.showerror("Error", "Please enter a valid IP address")
+        port_str = self.join_port_entry.get().strip()
+
+        if not ip or not port_str.isdigit():
+            messagebox.showerror("Error", "Please enter valid IP and port")
             return
+
+        port = int(port_str)
         try:
-            self.sock, self.chat_key = chat.start_peer_gui(is_server=False, ip=ip)
+            self.sock, self.chat_key = chat.start_peer_gui(is_server=False, ip=ip, port=port)
             self.init_chat_page()
         except Exception as e:
             messagebox.showerror("Connection Failed", str(e))

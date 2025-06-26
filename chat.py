@@ -4,15 +4,15 @@ import AES_decoder
 import server
 import client
 
-def start_peer_gui(is_server, ip='localhost'):
+def start_peer_gui(is_server, ip='localhost', port=9999):
     s = socket.socket()
     if is_server:
-        s.bind(('', 9999))
+        s.bind(('', port))
         s.listen(1)
         conn, _ = s.accept()
         key = server.start_server(conn)
     else:
-        s.connect((ip, 9999))
+        s.connect((ip, port))
         conn = s
         key = client.start_client(conn)
 
