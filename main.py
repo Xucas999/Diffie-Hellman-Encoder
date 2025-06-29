@@ -67,9 +67,29 @@ class ChatApp:
         threading.Thread(target=self.wait_for_client, daemon=True).start()
 
     def wait_for_client(self):
+        def approve(username, addr):
+            return messagebox.askyesno(
+                "Connection Request",
+                f"{username} wants to join from {addr[0]}.\nDo you want to accept?"
+            )
+
         try:
-            self.sock, self.chat_key, self.secret, self.shared_secret, self.peer_username = chat.start_peer_gui(is_server=True, ip="localhost", port=self.port, username=self.username)
+            result = chat.start_peer_gui(
+                is_server=True,
+                ip="localhost",
+                port=self.port,
+                username=self.username,
+                approval_callback=approve
+            )
+
+            if result[0] is None:
+                self.root.after(0, lambda: messagebox.showinfo("Connection Denied", "You denied the client request."))
+                self.root.after(0, self.init_welcome_page)
+                return
+
+            self.sock, self.chat_key, self.secret, self.shared_secret, self.peer_username = result
             self.root.after(0, self.init_chat_page)
+
         except Exception as e:
             self.root.after(0, lambda: messagebox.showerror("Hosting Error", str(e)))
 
@@ -227,6 +247,7 @@ class ChatApp:
             widget.destroy()
 
         tk.Label(self.sidebar, text="Encryption Info", font=("Arial", 12, "bold"), bg="lightgray").pack(pady=10)
+        tk.Label(self.sidebar, text="⚠ DO NOT SHARE THIS INFORMATION", fg="red", font=("Arial", 8, "bold")).pack(pady=(10, 5))
 
         if hasattr(self, "secret"):
             tk.Label(self.sidebar, text=f"Secret Number:\n{self.secret}", bg="lightgray", anchor="w", justify="left", wraplength=180).pack(pady=5)
@@ -245,6 +266,7 @@ class ChatApp:
         # Add Back button
         tk.Button(self.sidebar, text="Back", command=self.toggle_sidebar).pack(pady=10)
 
+    
 
 if __name__ == "__main__":
     root = tk.Tk()
